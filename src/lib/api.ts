@@ -6,6 +6,10 @@ import type {
 	CreateWeightRequest,
 	CreateMeditationRequest,
 	CreateFeelingRequest,
+	UpdateWeightRequest,
+	UpdateMeditationRequest,
+	UpdateFeelingRequest,
+	ExportData,
 	AppSettings
 } from './types';
 
@@ -37,6 +41,16 @@ async function httpPost<T>(path: string, body?: unknown): Promise<T> {
 	return text ? JSON.parse(text) : undefined;
 }
 
+async function httpPut<T>(path: string, body: unknown): Promise<T> {
+	const resp = await fetch(`${API_BASE}${path}`, {
+		method: 'PUT',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify(body)
+	});
+	if (!resp.ok) throw new Error(await resp.text());
+	return resp.json();
+}
+
 async function httpDelete(path: string): Promise<void> {
 	const resp = await fetch(`${API_BASE}${path}`, { method: 'DELETE' });
 	if (!resp.ok) throw new Error(await resp.text());
@@ -55,6 +69,11 @@ export async function listWeights(from?: string, to?: string): Promise<WeightEnt
 	if (to) params.set('to', to);
 	const qs = params.toString();
 	return httpGet(`/api/weight${qs ? '?' + qs : ''}`);
+}
+
+export async function updateWeight(id: number, req: UpdateWeightRequest): Promise<WeightEntry> {
+	if (isTauri()) return tauriInvoke('cmd_update_weight', { id, req });
+	return httpPut(`/api/weight/${id}`, req);
 }
 
 export async function deleteWeight(id: number): Promise<void> {
@@ -77,6 +96,11 @@ export async function listMeditations(from?: string, to?: string): Promise<Medit
 	return httpGet(`/api/meditation${qs ? '?' + qs : ''}`);
 }
 
+export async function updateMeditation(id: number, req: UpdateMeditationRequest): Promise<MeditationSession> {
+	if (isTauri()) return tauriInvoke('cmd_update_meditation', { id, req });
+	return httpPut(`/api/meditation/${id}`, req);
+}
+
 export async function deleteMeditation(id: number): Promise<void> {
 	if (isTauri()) return tauriInvoke('cmd_delete_meditation', { id });
 	return httpDelete(`/api/meditation/${id}`);
@@ -95,6 +119,11 @@ export async function listFeelings(from?: string, to?: string): Promise<FeelingE
 	if (to) params.set('to', to);
 	const qs = params.toString();
 	return httpGet(`/api/feelings${qs ? '?' + qs : ''}`);
+}
+
+export async function updateFeeling(id: number, req: UpdateFeelingRequest): Promise<FeelingEntry> {
+	if (isTauri()) return tauriInvoke('cmd_update_feeling', { id, req });
+	return httpPut(`/api/feelings/${id}`, req);
 }
 
 export async function deleteFeeling(id: number): Promise<void> {
@@ -116,6 +145,12 @@ export async function generateTips(): Promise<AiTip> {
 export async function checkTipsStale(): Promise<boolean> {
 	if (isTauri()) return tauriInvoke('cmd_check_tips_stale');
 	return httpGet('/api/tips/stale');
+}
+
+// Export
+export async function exportData(): Promise<ExportData> {
+	if (isTauri()) return tauriInvoke('cmd_export_data');
+	return httpGet('/api/export');
 }
 
 // Settings

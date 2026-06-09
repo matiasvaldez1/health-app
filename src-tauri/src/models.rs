@@ -63,6 +63,36 @@ pub struct CreateFeelingRequest {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+pub struct UpdateWeightRequest {
+    pub weight_kg: Option<f64>,
+    pub date: Option<String>,
+    pub notes: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct UpdateMeditationRequest {
+    pub date: Option<String>,
+    pub time: Option<String>,
+    pub duration_min: Option<i32>,
+    pub notes: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct UpdateFeelingRequest {
+    pub date: Option<String>,
+    pub content: Option<String>,
+    pub mood_score: Option<i32>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct ExportData {
+    pub weights: Vec<WeightEntry>,
+    pub meditations: Vec<MeditationSession>,
+    pub feelings: Vec<FeelingEntry>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
 pub struct AppSettings {
     pub api_key: Option<String>,
+    pub weight_goal: Option<f64>,
 }

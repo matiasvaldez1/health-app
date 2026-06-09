@@ -110,9 +110,9 @@ pub async fn generate_tips(
 
     let settings: AppSettings = if config_path.exists() {
         let data = std::fs::read_to_string(&config_path).unwrap_or_default();
-        serde_json::from_str(&data).unwrap_or(AppSettings { api_key: None })
+        serde_json::from_str(&data).unwrap_or(AppSettings { api_key: None, weight_goal: None })
     } else {
-        AppSettings { api_key: None }
+        AppSettings { api_key: None, weight_goal: None }
     };
 
     let api_key = settings.api_key.ok_or((
@@ -163,9 +163,9 @@ pub async fn get_settings() -> ApiResult<AppSettings> {
 
     let mut settings: AppSettings = if config_path.exists() {
         let data = std::fs::read_to_string(&config_path).unwrap_or_default();
-        serde_json::from_str(&data).unwrap_or(AppSettings { api_key: None })
+        serde_json::from_str(&data).unwrap_or(AppSettings { api_key: None, weight_goal: None })
     } else {
-        AppSettings { api_key: None }
+        AppSettings { api_key: None, weight_goal: None }
     };
 
     if let Some(ref key) = settings.api_key {
@@ -186,7 +186,51 @@ pub async fn save_settings(
         p
     };
 
-    let data = serde_json::to_string_pretty(&settings).map_err(|e| err(e.to_string()))?;
+    let mut current: AppSettings = if config_path.exists() {
+        let existing = std::fs::read_to_string(&config_path).unwrap_or_default();
+        serde_json::from_str(&existing).unwrap_or(AppSettings { api_key: None, weight_goal: None })
+    } else {
+        AppSettings { api_key: None, weight_goal: None }
+    };
+
+    if let Some(key) = settings.api_key {
+        current.api_key = Some(key);
+    }
+    if settings.weight_goal.is_some() {
+        current.weight_goal = settings.weight_goal;
+    }
+
+    let data = serde_json::to_string_pretty(&current).map_err(|e| err(e.to_string()))?;
     std::fs::write(&config_path, data).map_err(|e| err(e.to_string()))?;
     Ok(StatusCode::OK)
+}
+
+pub async fn update_weight(
+    Extension(pool): Extension<DbPool>,
+    Path(id): Path<i64>,
+    Json(req): Json<UpdateWeightRequest>,
+) -> ApiResult<WeightEntry> {
+    services::update_weight(&pool, id, req).map(Json).map_err(err)
+}
+
+pub async fn update_meditation(
+    Extension(pool): Extension<DbPool>,
+    Path(id): Path<i64>,
+    Json(req): Json<UpdateMeditationRequest>,
+) -> ApiResult<MeditationSession> {
+    services::update_meditation(&pool, id, req).map(Json).map_err(err)
+}
+
+pub async fn update_feeling(
+    Extension(pool): Extension<DbPool>,
+    Path(id): Path<i64>,
+    Json(req): Json<UpdateFeelingRequest>,
+) -> ApiResult<FeelingEntry> {
+    services::update_feeling(&pool, id, req).map(Json).map_err(err)
+}
+
+pub async fn export_data(
+    Extension(pool): Extension<DbPool>,
+) -> ApiResult<ExportData> {
+    services::export_all_data(&pool).map(Json).map_err(err)
 }

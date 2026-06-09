@@ -314,6 +314,77 @@ pub fn get_total_entries_count(pool: &DbPool) -> Result<i32, String> {
     Ok(count as i32)
 }
 
+pub fn update_weight(pool: &DbPool, id: i64, req: UpdateWeightRequest) -> Result<WeightEntry, String> {
+    let conn = pool.get().map_err(|e| e.to_string())?;
+    let mut sets = Vec::new();
+    let mut param_values: Vec<Box<dyn rusqlite::types::ToSql>> = Vec::new();
+    let mut idx = 1;
+
+    if let Some(ref v) = req.weight_kg { sets.push(format!("weight_kg = ?{}", idx)); param_values.push(Box::new(*v)); idx += 1; }
+    if let Some(ref v) = req.date { sets.push(format!("date = ?{}", idx)); param_values.push(Box::new(v.clone())); idx += 1; }
+    if let Some(ref v) = req.notes { sets.push(format!("notes = ?{}", idx)); param_values.push(Box::new(v.clone())); idx += 1; }
+
+    if sets.is_empty() { return get_weight_by_id(pool, id); }
+
+    sets.push(format!("updated_at = datetime('now')"));
+    let sql = format!("UPDATE weight_entries SET {} WHERE id = ?{}", sets.join(", "), idx);
+    param_values.push(Box::new(id));
+
+    let params_refs: Vec<&dyn rusqlite::types::ToSql> = param_values.iter().map(|p| p.as_ref()).collect();
+    conn.execute(&sql, params_refs.as_slice()).map_err(|e| e.to_string())?;
+    get_weight_by_id(pool, id)
+}
+
+pub fn update_meditation(pool: &DbPool, id: i64, req: UpdateMeditationRequest) -> Result<MeditationSession, String> {
+    let conn = pool.get().map_err(|e| e.to_string())?;
+    let mut sets = Vec::new();
+    let mut param_values: Vec<Box<dyn rusqlite::types::ToSql>> = Vec::new();
+    let mut idx = 1;
+
+    if let Some(ref v) = req.date { sets.push(format!("date = ?{}", idx)); param_values.push(Box::new(v.clone())); idx += 1; }
+    if let Some(ref v) = req.time { sets.push(format!("time = ?{}", idx)); param_values.push(Box::new(v.clone())); idx += 1; }
+    if let Some(ref v) = req.duration_min { sets.push(format!("duration_min = ?{}", idx)); param_values.push(Box::new(*v)); idx += 1; }
+    if let Some(ref v) = req.notes { sets.push(format!("notes = ?{}", idx)); param_values.push(Box::new(v.clone())); idx += 1; }
+
+    if sets.is_empty() { return get_meditation_by_id(pool, id); }
+
+    sets.push(format!("updated_at = datetime('now')"));
+    let sql = format!("UPDATE meditation_sessions SET {} WHERE id = ?{}", sets.join(", "), idx);
+    param_values.push(Box::new(id));
+
+    let params_refs: Vec<&dyn rusqlite::types::ToSql> = param_values.iter().map(|p| p.as_ref()).collect();
+    conn.execute(&sql, params_refs.as_slice()).map_err(|e| e.to_string())?;
+    get_meditation_by_id(pool, id)
+}
+
+pub fn update_feeling(pool: &DbPool, id: i64, req: UpdateFeelingRequest) -> Result<FeelingEntry, String> {
+    let conn = pool.get().map_err(|e| e.to_string())?;
+    let mut sets = Vec::new();
+    let mut param_values: Vec<Box<dyn rusqlite::types::ToSql>> = Vec::new();
+    let mut idx = 1;
+
+    if let Some(ref v) = req.date { sets.push(format!("date = ?{}", idx)); param_values.push(Box::new(v.clone())); idx += 1; }
+    if let Some(ref v) = req.content { sets.push(format!("content = ?{}", idx)); param_values.push(Box::new(v.clone())); idx += 1; }
+    if let Some(ref v) = req.mood_score { sets.push(format!("mood_score = ?{}", idx)); param_values.push(Box::new(*v)); idx += 1; }
+
+    if sets.is_empty() { return get_feeling_by_id(pool, id); }
+
+    sets.push(format!("updated_at = datetime('now')"));
+    let sql = format!("UPDATE feeling_entries SET {} WHERE id = ?{}", sets.join(", "), idx);
+    param_values.push(Box::new(id));
+
+    let params_refs: Vec<&dyn rusqlite::types::ToSql> = param_values.iter().map(|p| p.as_ref()).collect();
+    conn.execute(&sql, params_refs.as_slice()).map_err(|e| e.to_string())?;
+    get_feeling_by_id(pool, id)
+}
+
+pub fn export_all_data(pool: &DbPool) -> Result<ExportData, String> {
+    let weights = list_weights(pool, None, None)?;
+    let meditations = list_meditations(pool, None, None)?;
+    let feelings = list_feelings(pool, None, None)?;
+    Ok(ExportData { weights, meditations, feelings })
+}
+
 pub fn compute_data_hash(pool: &DbPool) -> Result<String, String> {
     let weights = list_weights(pool, None, None)?;
     let meditations = list_meditations(pool, None, None)?;

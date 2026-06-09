@@ -1,21 +1,28 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { listWeights, listMeditations, listFeelings, getLatestTip } from '$lib/api';
-	import { daysAgo, formatDate } from '$lib/utils';
-	import type { WeightEntry, MeditationSession, FeelingEntry, AiTip } from '$lib/types';
+	import { listWeights, listMeditations, listFeelings, getLatestTip, getSettings } from '$lib/api';
+	import { daysAgo, formatDate, today } from '$lib/utils';
+	import type { WeightEntry, MeditationSession, FeelingEntry, AiTip, AppSettings } from '$lib/types';
 
 	let weights = $state<WeightEntry[]>([]);
 	let meditations = $state<MeditationSession[]>([]);
 	let feelings = $state<FeelingEntry[]>([]);
 	let latestTip = $state<AiTip | null>(null);
+	let settings = $state<AppSettings>({});
 
 	const weekAgo = daysAgo(7);
 	const monthAgo = daysAgo(30);
+	const todayStr = today();
 
 	let currentWeight = $derived(weights.length > 0 ? weights[0].weight_kg : null);
 	let weightChange = $derived(
 		weights.length >= 2 ? weights[0].weight_kg - weights[weights.length - 1].weight_kg : null
 	);
+
+	let weightGoalDiff = $derived.by(() => {
+		if (!settings.weight_goal || !currentWeight) return null;
+		return currentWeight - settings.weight_goal;
+	});
 
 	let meditationsThisWeek = $derived(
 		meditations.filter((m) => m.date >= weekAgo).length
@@ -49,37 +56,53 @@
 	let weightMax = $derived(sortedWeights.length > 0 ? Math.max(...sortedWeights.map(w => w.weight_kg)) : 0);
 	let weightRange = $derived(weightMax - weightMin || 1);
 
+	// Streak notification: days since last activity
+	let daysSinceLastEntry = $derived.by(() => {
+		const allDates: string[] = [
+			...weights.map(w => w.date),
+			...meditations.map(m => m.date),
+			...feelings.map(f => f.date)
+		];
+		if (allDates.length === 0) return -1;
+		const latest = allDates.sort().reverse()[0];
+		const diff = Math.floor((new Date(todayStr).getTime() - new Date(latest).getTime()) / (1000 * 60 * 60 * 24));
+		return diff;
+	});
+
 	onMount(async () => {
-		const [w, m, f, t] = await Promise.all([
+		const [w, m, f, t, s] = await Promise.all([
 			listWeights(monthAgo),
 			listMeditations(monthAgo),
 			listFeelings(weekAgo),
-			getLatestTip()
+			getLatestTip(),
+			getSettings()
 		]);
 		weights = w;
 		meditations = m;
 		feelings = f;
 		latestTip = t;
+		settings = s;
 	});
 </script>
 
 <div class="max-w-5xl">
 	<h2 class="text-2xl font-bold mb-6">Inicio</h2>
 
-	<!-- Acciones rápidas -->
+	<!-- Streak Warning -->
+	{#if daysSinceLastEntry >= 2}
+		<div class="bg-warning/10 border border-warning/30 rounded-lg p-4 mb-6">
+			<p class="text-sm text-warning">
+				Hace {daysSinceLastEntry} días que no registrás nada. ¡Seguí con tu racha!
+			</p>
+		</div>
+	{/if}
+
+	<!-- Quick Actions -->
 	<div class="flex gap-3 mb-6">
-		<a href="/weight" class="bg-accent hover:bg-accent-hover text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors">
-			+ Registrar Peso
-		</a>
-		<a href="/meditation" class="bg-accent hover:bg-accent-hover text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors">
-			+ Registrar Meditación
-		</a>
-		<a href="/feelings" class="bg-accent hover:bg-accent-hover text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors">
-			+ Registrar Ánimo
-		</a>
-		<a href="/tips" class="bg-bg-tertiary hover:bg-bg-hover text-text-secondary px-4 py-2 rounded-lg text-sm font-medium transition-colors border border-border">
-			Ver Tips IA
-		</a>
+		<a href="/weight" class="bg-accent hover:bg-accent-hover text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors">+ Registrar Peso</a>
+		<a href="/meditation" class="bg-accent hover:bg-accent-hover text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors">+ Registrar Meditación</a>
+		<a href="/feelings" class="bg-accent hover:bg-accent-hover text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors">+ Registrar Ánimo</a>
+		<a href="/tips" class="bg-bg-tertiary hover:bg-bg-hover text-text-secondary px-4 py-2 rounded-lg text-sm font-medium transition-colors border border-border">Ver Tips IA</a>
 	</div>
 
 	<div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
@@ -93,6 +116,15 @@
 				{#if weightChange !== null}
 					<p class="text-sm mt-1 {weightChange > 0 ? 'text-warning' : weightChange < 0 ? 'text-accent' : 'text-text-muted'}">
 						{weightChange > 0 ? '+' : ''}{weightChange.toFixed(1)} kg (30d)
+					</p>
+				{/if}
+				{#if weightGoalDiff !== null}
+					<p class="text-xs mt-1 text-text-muted">
+						{#if Math.abs(weightGoalDiff) < 0.1}
+							¡Llegaste a tu meta!
+						{:else}
+							{Math.abs(weightGoalDiff).toFixed(1)} kg para tu meta de {settings.weight_goal} kg
+						{/if}
 					</p>
 				{/if}
 			{:else}
@@ -133,13 +165,14 @@
 	{#if weights.length > 1}
 		<div class="bg-bg-secondary rounded-lg p-5 border border-border mb-6">
 			<h3 class="text-sm text-text-muted mb-4">Tendencia de peso (últimos 30 días)</h3>
-			<div class="flex items-end gap-1 h-32">
+			<div class="relative flex items-end gap-1 h-32">
+				{#if settings.weight_goal}
+					{@const goalPct = ((settings.weight_goal - weightMin) / weightRange) * 100 + 10}
+					<div class="absolute left-0 right-0 border-t border-dashed border-accent/50" style="bottom: {goalPct}%"></div>
+				{/if}
 				{#each sortedWeights as w}
 					<div class="flex-1 flex flex-col items-center justify-end h-full" title="{formatDate(w.date)}: {w.weight_kg} kg">
-						<div
-							class="w-full bg-accent/60 rounded-t min-h-[4px]"
-							style="height: {((w.weight_kg - weightMin) / weightRange) * 100 + 10}%"
-						></div>
+						<div class="w-full bg-accent/60 rounded-t min-h-[4px]" style="height: {((w.weight_kg - weightMin) / weightRange) * 100 + 10}%"></div>
 					</div>
 				{/each}
 			</div>

@@ -15,9 +15,9 @@ fn read_settings() -> AppSettings {
     let path = config_path();
     if path.exists() {
         let data = std::fs::read_to_string(&path).unwrap_or_default();
-        serde_json::from_str(&data).unwrap_or(AppSettings { api_key: None })
+        serde_json::from_str(&data).unwrap_or(AppSettings { api_key: None, weight_goal: None })
     } else {
-        AppSettings { api_key: None }
+        AppSettings { api_key: None, weight_goal: None }
     }
 }
 
@@ -128,11 +128,38 @@ pub fn cmd_get_settings() -> Result<AppSettings, String> {
 
 #[tauri::command]
 pub fn cmd_save_settings(settings: AppSettings) -> Result<(), String> {
-    write_settings(&settings)
+    let mut current = read_settings();
+    if let Some(key) = settings.api_key {
+        current.api_key = Some(key);
+    }
+    if settings.weight_goal.is_some() {
+        current.weight_goal = settings.weight_goal;
+    }
+    write_settings(&current)
 }
 
 #[tauri::command]
 pub fn cmd_has_api_key() -> Result<bool, String> {
     let settings = read_settings();
     Ok(settings.api_key.is_some())
+}
+
+#[tauri::command]
+pub fn cmd_update_weight(pool: tauri::State<'_, DbPool>, id: i64, req: UpdateWeightRequest) -> Result<WeightEntry, String> {
+    services::update_weight(&pool, id, req)
+}
+
+#[tauri::command]
+pub fn cmd_update_meditation(pool: tauri::State<'_, DbPool>, id: i64, req: UpdateMeditationRequest) -> Result<MeditationSession, String> {
+    services::update_meditation(&pool, id, req)
+}
+
+#[tauri::command]
+pub fn cmd_update_feeling(pool: tauri::State<'_, DbPool>, id: i64, req: UpdateFeelingRequest) -> Result<FeelingEntry, String> {
+    services::update_feeling(&pool, id, req)
+}
+
+#[tauri::command]
+pub fn cmd_export_data(pool: tauri::State<'_, DbPool>) -> Result<ExportData, String> {
+    services::export_all_data(&pool)
 }

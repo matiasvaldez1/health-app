@@ -53,6 +53,32 @@ export interface CreateFeelingRequest {
 	mood_score?: number;
 }
 
+export interface UpdateWeightRequest {
+	weight_kg?: number;
+	date?: string;
+	notes?: string;
+}
+
+export interface UpdateMeditationRequest {
+	date?: string;
+	time?: string;
+	duration_min?: number;
+	notes?: string;
+}
+
+export interface UpdateFeelingRequest {
+	date?: string;
+	content?: string;
+	mood_score?: number;
+}
+
+export interface ExportData {
+	weights: WeightEntry[];
+	meditations: MeditationSession[];
+	feelings: FeelingEntry[];
+}
+
 export interface AppSettings {
 	api_key?: string;
+	weight_goal?: number;
 }
